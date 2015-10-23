@@ -19,7 +19,7 @@
 //! and readable references coexisting (&Wom<T> is useless except when T is
 //! a `Cell<_>` anyway).
 
-use std::ptr;
+use std::{ptr, ops};
 use std::cell::Cell;
 
 #[repr(C)]
@@ -224,3 +224,39 @@ impl<'a, T: 'a> ::std::iter::IntoIterator for &'a mut Wom<[T]> {
     }
 }
 
+impl<T> ops::Index<usize> for Wom<[T]> {
+    type Output = Wom<T>;
+    fn index(&self, idx: usize) -> &Wom<T> {
+        unsafe { Wom::from_ref(&self.unwrap()[idx]) }
+    }
+}
+
+impl<T> ops::IndexMut<usize> for Wom<[T]> {
+    fn index_mut(&mut self, idx: usize) -> &mut Wom<T> {
+        unsafe { Wom::from_ref_mut(&mut self.unwrap_mut()[idx]) }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::cell::Cell;
+    #[test]
+    fn test_idx() {
+        let mut k = [ Cell::new(3) ];
+        {
+            let w_k = &*Wom::from_ref_mut(&mut k[..]);
+            &w_k[0].set_cell(5);
+        }
+        assert_eq!(&k[0].get(), &5);
+    }
+    #[test]
+    fn test_idx_mut() {
+        let mut k = [ 3 ];
+        {
+            let w_k = Wom::from_ref_mut(&mut k[..]);
+            &w_k[0].set(5);
+        }
+        assert_eq!(&k[0], &5);
+    }
+}
