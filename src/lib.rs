@@ -24,7 +24,9 @@ use std::cell::Cell;
 
 #[repr(C)]
 pub struct Wom<T: ?Sized>(T);
-impl<T> Wom<T> {
+
+// The correct bounds are !Drop, but that ain't possible right now.
+impl<T: Copy> Wom<T> {
     /// Create a owned write-only value.
     ///
     /// # Example
@@ -34,13 +36,16 @@ impl<T> Wom<T> {
     /// k.set(5);
     /// assert_eq!(5, k.into_inner());
     /// ```
-    pub fn new(x: T) -> Wom<T> {
+    pub fn new(x: T) -> Self {
         Wom(x)
     }
     /// Convert a owned write-only value into a owned readable value.
     pub fn into_inner(self) -> T {
         self.0
     }
+}
+
+impl<T> Wom<T> {
     /// Set the value pointed to by a write-only reference.
     pub fn set(&mut self, val: T) {
         unsafe { ptr::write(&mut self.0, val) };
@@ -60,16 +65,16 @@ impl<T: ?Sized> Wom<T> {
     /// }
     /// assert_eq!(k, 5);
     /// ```
-    pub fn from_ref_mut<'a>(x: &'a mut T) -> &'a mut Wom<T> {
+    pub fn from_ref_mut<'a>(x: &'a mut T) -> &'a mut Self {
         unsafe {
-            &mut *(x as *mut T as *mut Wom<T>)
+            &mut *(x as *mut T as *mut Self)
         }
     }
     /// Get a shared `Wom<T>`. This is useless except when used with a
     /// `&Cell<_>`, and it is unsound to read a value while there are
     /// write-only references to it.
-    pub unsafe fn from_ref<'a>(x: &'a T) -> &'a Wom<T> {
-        & *(x as *const T as *const Wom<T>)
+    pub unsafe fn from_ref<'a>(x: &'a T) -> &'a Self {
+        & *(x as *const T as *const Self)
     }
     /// Get an exclusive readable reference to the underlying value.
     pub unsafe fn unwrap_mut(&mut self) -> &mut T {
@@ -89,14 +94,15 @@ impl<T: Copy> Wom<Cell<T>> {
     /// ```
     /// # use wom::Wom;
     /// use std::cell::Cell;
-    /// let k = Wom::new(Cell::new(3));
+    /// let mut k = Cell::new(3);
     /// {
-    ///     let l = &k;
-    ///     let m = &k;
+    ///     let m_k = &*Wom::from_ref_mut(&mut k);
+    ///     let l = m_k;
+    ///     let m = m_k;
     ///     l.set_cell(3);
     ///     m.set_cell(5);
     /// }
-    /// assert_eq!(k.into_inner().get(), 5);
+    /// assert_eq!(k.get(), 5);
     /// ```
     pub fn set_cell(&self, val: T) {
         self.0.set(val);
@@ -114,12 +120,13 @@ impl<T: Copy> Wom<Cell<T>> {
 /// struct K {
 ///     inner: Cell<usize>,
 /// }
-/// let k = Wom::new(K{ inner: Cell::new(3) });
+/// let mut k = K{ inner: Cell::new(3) };
 /// {
-///     let inner_k = wom!(&k, inner);
+///     let m_k = &*Wom::from_ref_mut(&mut k);
+///     let inner_k = wom!(m_k, inner);
 ///     inner_k.set_cell(5);
 /// }
-/// assert_eq!(k.into_inner().inner.get(), 5);
+/// assert_eq!(k.inner.get(), 5);
 /// # }
 /// ```
 #[macro_export]
@@ -139,12 +146,13 @@ macro_rules! wom {
 /// struct K {
 ///     inner: usize,
 /// }
-/// let mut k = Wom::new(K{ inner: 3 });
+/// let mut k = K{ inner: 3 };
 /// {
-///     let mut inner_k = wom_mut!(&mut k, inner);
+///     let m_k = Wom::from_ref_mut(&mut k);
+///     let mut inner_k = wom_mut!(m_k, inner);
 ///     inner_k.set(5);
 /// }
-/// assert_eq!(k.into_inner().inner, 5);
+/// assert_eq!(k.inner, 5);
 /// # }
 /// ```
 #[macro_export]
@@ -176,7 +184,7 @@ pub struct WomIter<'a, T: 'a> (::std::slice::Iter<'a, T>);
 
 impl<'a, T: 'a> Iterator for WomIter<'a, T> {
     type Item = &'a Wom<T>;
-    fn next(&mut self) -> Option<&'a Wom<T>> {
+    fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|x| unsafe { Wom::from_ref(x) })
     }
 }
@@ -211,7 +219,7 @@ pub struct WomIterMut<'a, T: 'a> (::std::slice::IterMut<'a, T>);
 
 impl<'a, T: 'a> Iterator for WomIterMut<'a, T> {
     type Item = &'a mut Wom<T>;
-    fn next(&mut self) -> Option<&'a mut Wom<T>> {
+    fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(Wom::from_ref_mut)
     }
 }
@@ -226,13 +234,13 @@ impl<'a, T: 'a> ::std::iter::IntoIterator for &'a mut Wom<[T]> {
 
 impl<T> ops::Index<usize> for Wom<[T]> {
     type Output = Wom<T>;
-    fn index(&self, idx: usize) -> &Wom<T> {
+    fn index(&self, idx: usize) -> &Self::Output {
         unsafe { Wom::from_ref(&self.unwrap()[idx]) }
     }
 }
 
 impl<T> ops::IndexMut<usize> for Wom<[T]> {
-    fn index_mut(&mut self, idx: usize) -> &mut Wom<T> {
+    fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
         unsafe { Wom::from_ref_mut(&mut self.unwrap_mut()[idx]) }
     }
 }
