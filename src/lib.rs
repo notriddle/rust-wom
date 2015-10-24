@@ -43,6 +43,25 @@ impl<T: Copy> Wom<T> {
     pub fn into_inner(self) -> T {
         self.0
     }
+    /// Allow aliasing the mutable reference, using a `Cell`.
+    /// 
+    /// # Example
+    /// ```
+    /// # use wom::Wom;
+    /// let mut m = Wom::new(42);
+    /// {
+    ///     let n = m.cell();
+    ///     let p = n;
+    ///     n.set_cell(0);
+    ///     p.set_cell(69);
+    /// }
+    /// assert_eq!(m.into_inner(), 69);
+    /// ```
+    pub fn cell(&mut self) -> &Wom<Cell<T>> {
+         unsafe {
+            &mut *(self as *mut Self as *mut Wom<Cell<T>>)
+        }
+    }
 }
 
 impl<T> Wom<T> {
@@ -232,17 +251,41 @@ impl<'a, T: 'a> ::std::iter::IntoIterator for &'a mut Wom<[T]> {
     }
 }
 
-impl<T> ops::Index<usize> for Wom<[T]> {
-    type Output = Wom<T>;
-    fn index(&self, idx: usize) -> &Self::Output {
+impl<T, U> ops::Index<U> for Wom<[T]> where [T]: ops::Index<U> {
+    type Output = Wom<<[T] as ops::Index<U>>::Output>;
+    fn index(&self, idx: U) -> &Self::Output {
         unsafe { Wom::from_ref(&self.unwrap()[idx]) }
     }
 }
 
-impl<T> ops::IndexMut<usize> for Wom<[T]> {
-    fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
+impl<T, U> ops::IndexMut<U> for Wom<[T]> where [T]: ops::IndexMut<U> {
+    fn index_mut(&mut self, idx: U) -> &mut Self::Output {
         unsafe { Wom::from_ref_mut(&mut self.unwrap_mut()[idx]) }
     }
+}
+
+impl<T: Copy> Wom<[T]> {
+    /// Allow aliasing the mutable reference, using a slice of `Cell`s.
+    ///
+    /// # Example
+    /// ```
+    /// # use wom::Wom;
+    /// let mut k = [42, 69];
+    /// {
+    ///     let m = Wom::from_ref_mut(&mut k[..]);
+    ///     let n = m.cell_slice();
+    ///     let p = n;
+    ///     n[0].set_cell(3);
+    ///     p[1].set_cell(1);
+    /// }
+    /// assert_eq!(k, [3, 1]);
+    /// ```
+    pub fn cell_slice(&mut self) -> &Wom<[Cell<T>]> {
+         unsafe {
+            &mut *(self as *mut Self as *mut Wom<[Cell<T>]>)
+        }
+    }
+
 }
 
 #[cfg(test)]
