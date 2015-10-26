@@ -1,5 +1,5 @@
-Read-only memory for Rust
-=========================
+Write-only memory for Rust
+==========================
     
 [Full documentation here.](https://www.notriddle.com/rustdoc/wom/)
 
