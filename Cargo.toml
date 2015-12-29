@@ -2,3 +2,9 @@
 name = "wom"
 version = "0.1.0"
 authors = ["Michael Howell <michael@notriddle.com>"]
+description = "Write-only memory"
+license = "MIT / Apache-2.0"
+readme = "README.md"
+documentation = "https://www.notriddle.com/rustdoc/wom/index.html"
+repository = "https://github.com/notriddle/rust-wom"
+
