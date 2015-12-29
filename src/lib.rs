@@ -216,7 +216,7 @@ impl<'a, T: 'a> ::std::iter::IntoIterator for &'a Wom<[T]> {
     }
 }
 
-/// An iterator over the contents of a write-only shared slice.
+/// An iterator over the contents of a write-only exclusive slice.
 /// 
 /// # Example
 /// ```
